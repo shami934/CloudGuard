@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Performance History · CloudGuard{% endblock %}
+
+{% block header %}
+<h1>Infrastructure Telemetry History</h1>
+<p class="topbar-meta">Historical compute metrics, multi-vector trend analysis &amp; long-term telemetry logs</p>
+{% endblock %}
+
+{% block content %}
+<section class="filter-section card" aria-label="Timeframe filters">
+    <div class="filter-head">
+        <div class="status-title-group">
+            <div class="status-beacon-wrap">
+                <span class="status-indicator-dot"></span>
+                <span class="status-beacon-ring"></span>
+            </div>
+            <div>
+                <h2>Temporal Telemetry Filter</h2>
+                <span class="status-subheadline">Select timeframe window for aggregate analytics</span>
+            </div>
+        </div>
+        <span class="badge-subtle">{{ metrics|length }} Telemetry Record{% if metrics|length != 1 %}s{% endif %} Loaded</span>
+    </div>
+    <nav class="filter-tabs" aria-label="History timeframe filters">
+        <a class="filter-tab {% if active_timeframe == '1h' %}is-active{% endif %}"
+            href="{{ url_for('history', timeframe='1h') }}">
+            Last 1 Hour
+        </a>
+        <a class="filter-tab {% if active_timeframe == '6h' %}is-active{% endif %}"
+            href="{{ url_for('history', timeframe='6h') }}">
+            Last 6 Hours
+        </a>
+        <a class="filter-tab {% if active_timeframe == '24h' %}is-active{% endif %}"
+            href="{{ url_for('history', timeframe='24h') }}">
+            Last 24 Hours
+        </a>
+        <a class="filter-tab {% if active_timeframe == 'all' or not active_timeframe %}is-active{% endif %}"
+            href="{{ url_for('history', timeframe='all') }}">
+            All Time
+        </a>
+    </nav>
+</section>
+
+{% if metrics %}
+<section class="card chart-card" aria-label="Usage trends chart">
+    <div class="chart-head">
+        <div>
+            <h2>Multi-Vector Telemetry Progression</h2>
+            <p class="card-meta">Continuous timeline curves comparing CPU, RAM, and Disk storage vectors</p>
+        </div>
+        <div class="chart-legend">
+            <span class="legend-item"><span class="legend-dot legend-cpu"></span> CPU %</span>
+            <span class="legend-item"><span class="legend-dot legend-mem"></span> Memory %</span>
+            <span class="legend-item"><span class="legend-dot legend-disk"></span> Disk %</span>
+        </div>
+    </div>
+    <div class="chart chart-lg" data-chart="history-trend" id="history-chart"></div>
+</section>
+
+<section class="card" aria-label="Historical metrics table">
+    <div class="card-header-flex">
+        <div class="card-title-badge-wrap">
+            <h2>Performance Telemetry Logs</h2>
+            <span class="badge-subtle">Recorded Sensor Telemetry</span>
+        </div>
+        <span class="pill pill-online pill-sm"><span class="dot-sm green"></span> Verified Chronology</span>
+    </div>
+    <div class="table-wrap">
+        <table class="resource-table">
+            <thead>
+                <tr>
+                    <th>Recorded Timestamp</th>
+                    <th>Host Node</th>
+                    <th>CPU Load</th>
+                    <th>Memory Usage</th>
+                    <th>Disk Storage</th>
+                    <th>Network Inbound</th>
+                    <th>Network Outbound</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in metrics %}
+                <tr>
+                    <td><span class="timestamp-badge">{{ row.timestamp }}</span></td>
+                    <td>
+                        <div class="resource-cell">
+                            <span class="server-dot online"></span>
+                            <strong>{{ row.server_name }}</strong>
+                        </div>
+                    </td>
+                    <td><span class="metric-num {% if row.cpu_usage >= 90 %}text-critical{% elif row.cpu_usage >= 70 %}text-warning{% endif %}">{{ "%.1f"|format(row.cpu_usage) }}%</span></td>
+                    <td><span class="metric-num {% if row.memory_usage >= 90 %}text-critical{% elif row.memory_usage >= 75 %}text-warning{% endif %}">{{ "%.1f"|format(row.memory_usage) }}%</span></td>
+                    <td><span class="metric-num {% if row.storage_usage >= 90 %}text-critical{% elif row.storage_usage >= 75 %}text-warning{% endif %}">{{ "%.1f"|format(row.storage_usage) }}%</span></td>
+                    <td><span class="metric-network">{{ "%.2f"|format(row.network_inbound / (1024 * 1024)) }} MB</span></td>
+                    <td><span class="metric-network">{{ "%.2f"|format(row.network_outbound / (1024 * 1024)) }} MB</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<script>
+    window.HISTORY_METRICS_DATA = {{ metrics | tojson }};
+</script>
+{% else %}
+<section class="card empty-state" aria-label="No history state">
+    <div class="empty-icon-halo">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+    </div>
+    <h2>No Telemetry History Recorded</h2>
+    <p class="card-meta">No metrics have been recorded for the selected timeframe filter <strong>"{{ active_timeframe }}"</strong>.</p>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Infrastructure Resources · CloudGuard{% endblock %}
+
+{% block header %}
+<h1>Infrastructure Fleet &amp; Monitored Nodes</h1>
+<p class="topbar-meta">Perimeter node telemetry, compute load distribution &amp; host health</p>
+{% endblock %}
+
+{% block content %}
+<section class="status-banner card" aria-label="Resources summary">
+    <div class="status-head">
+        <div class="status-title-group">
+            <div class="status-beacon-wrap">
+                <span class="status-indicator-dot"></span>
+                <span class="status-beacon-ring"></span>
+            </div>
+            <div>
+                <h2>Fleet Overview &amp; Mesh Topography</h2>
+                <span class="status-subheadline">Real-time telemetric synchronization across compute nodes</span>
+            </div>
+        </div>
+        {% if resources %}
+        <span class="status-badge status-healthy">{{ resources|length }} Monitored Node{% if resources|length != 1 %}s{% endif %} Online</span>
+        {% else %}
+        <span class="status-badge">0 Nodes Registered</span>
+        {% endif %}
+    </div>
+    <div class="status-divider"></div>
+    <p class="card-meta">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-meta-icon"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><polyline points="8 16 12 12 16 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg>
+        Continuous polling active &middot; Hardware metrics gathered through authenticated CloudGuard system agents
+    </p>
+</section>
+
+{% if resources %}
+<section class="card" aria-label="Monitored servers table">
+    <div class="card-header-flex">
+        <div class="card-title-badge-wrap">
+            <h2>Managed Infrastructure Nodes</h2>
+            <span class="badge-subtle">Live Sensor Stream</span>
+        </div>
+        <span class="pill pill-online pill-sm"><span class="dot-sm green"></span> Telemetry Locked</span>
+    </div>
+    <div class="table-wrap">
+        <table class="resource-table">
+            <thead>
+                <tr>
+                    <th>Host Node</th>
+                    <th>Status</th>
+                    <th>CPU Load</th>
+                    <th>Memory</th>
+                    <th>Disk Storage</th>
+                    <th>Last Synchronized</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for server in resources %}
+                <tr>
+                    <td>
+                        <div class="resource-cell">
+                            <div class="server-avatar">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+                                    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+                                    <line x1="6" x2="6.01" y1="6" y2="6"/>
+                                    <line x1="6" x2="6.01" y1="18" y2="18"/>
+                                </svg>
+                            </div>
+                            <div class="server-info">
+                                <strong class="server-title">{{ server.name }}</strong>
+                                <span class="server-sub">node-0{{ loop.index }} &middot; agent verified</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if server.status == 'Online' %}
+                        <span class="pill pill-online"><span class="dot-sm green"></span> Online</span>
+                        {% elif server.status == 'Warning' %}
+                        <span class="pill pill-warning"><span class="dot-sm amber"></span> Warning</span>
+                        {% elif server.status == 'Offline' %}
+                        <span class="pill pill-offline"><span class="dot-sm red"></span> Offline</span>
+                        {% else %}
+                        <span class="pill">{{ server.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if server.cpu_usage is not none %}
+                        <div class="metric-cell-wrap">
+                            <span class="metric-num {% if server.cpu_usage >= 90 %}text-critical{% elif server.cpu_usage >= 70 %}text-warning{% endif %}">{{ "%.1f"|format(server.cpu_usage) }}%</span>
+                            <div class="mini-bar"><span class="mini-bar-fill {% if server.cpu_usage >= 90 %}mini-critical{% elif server.cpu_usage >= 70 %}mini-warn{% endif %}" style="width: {{ server.cpu_usage }}%;"></span></div>
+                        </div>
+                        {% else %}
+                        <span class="text-muted">&mdash;</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if server.memory_usage is not none %}
+                        <div class="metric-cell-wrap">
+                            <span class="metric-num {% if server.memory_usage >= 90 %}text-critical{% elif server.memory_usage >= 75 %}text-warning{% endif %}">{{ "%.1f"|format(server.memory_usage) }}%</span>
+                            <div class="mini-bar"><span class="mini-bar-fill {% if server.memory_usage >= 90 %}mini-critical{% elif server.memory_usage >= 75 %}mini-warn{% endif %}" style="width: {{ server.memory_usage }}%;"></span></div>
+                        </div>
+                        {% else %}
+                        <span class="text-muted">&mdash;</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if server.storage_usage is not none %}
+                        <div class="metric-cell-wrap">
+                            <span class="metric-num {% if server.storage_usage >= 90 %}text-critical{% elif server.storage_usage >= 75 %}text-warning{% endif %}">{{ "%.1f"|format(server.storage_usage) }}%</span>
+                            <div class="mini-bar"><span class="mini-bar-fill {% if server.storage_usage >= 90 %}mini-critical{% elif server.storage_usage >= 75 %}mini-warn{% endif %}" style="width: {{ server.storage_usage }}%;"></span></div>
+                        </div>
+                        {% else %}
+                        <span class="text-muted">&mdash;</span>
+                        {% endif %}
+                    </td>
+                    <td class="card-meta">
+                        {% if server.last_updated %}
+                        <span class="timestamp-badge">{{ server.last_updated }}</span>
+                        {% else %}
+                        <span class="text-muted">No data yet</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% else %}
+<section class="card empty-state" aria-label="No resources state">
+    <div class="empty-icon-halo">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+            <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+            <line x1="6" x2="6.01" y1="6" y2="6"/>
+            <line x1="6" x2="6.01" y1="18" y2="18"/>
+        </svg>
+    </div>
+    <h2>No Fleet Resources Registered</h2>
+    <p class="card-meta">No servers or nodes are currently tracked in the database.</p>
+</section>
+{% endif %}
+{% endblock %}

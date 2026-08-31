@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Alert Center · CloudGuard{% endblock %}
+
+{% block header %}
+<h1>Security &amp; Health Alert Center</h1>
+<p class="topbar-meta">Incident triage, severity categorization, root cause alerts &amp; resolution audit</p>
+{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flash-messages" aria-label="Notification banners">
+    {% for category, message in messages %}
+    <div class="flash-banner flash-{{ category }}">
+        <span class="flash-icon">{% if category == 'success' %}✓{% else %}⚠️{% endif %}</span>
+        <span class="flash-text">{{ message }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<section class="filter-section card" aria-label="Alert filters">
+    <div class="filter-head">
+        <div class="status-title-group">
+            <div class="status-beacon-wrap">
+                <span class="status-indicator-dot"></span>
+                <span class="status-beacon-ring"></span>
+            </div>
+            <div>
+                <h2>Incident Triage Stream</h2>
+                <span class="status-subheadline">Filter by classification &amp; lifecycle state</span>
+            </div>
+        </div>
+        <span class="badge-subtle">{{ alerts|length }} Incident{% if alerts|length != 1 %}s{% endif %} Logged</span>
+    </div>
+    <nav class="filter-tabs" aria-label="Alert filters">
+        <a class="filter-tab {% if active_filter == 'all' %}is-active{% endif %}"
+            href="{{ url_for('alerts', filter='all') }}">
+            <span class="filter-tab-label">All Incidents</span>
+        </a>
+        <a class="filter-tab filter-tab-critical {% if active_filter == 'critical' %}is-active{% endif %}"
+            href="{{ url_for('alerts', filter='critical') }}">
+            <span class="dot-sm red"></span>
+            <span class="filter-tab-label">Critical</span>
+        </a>
+        <a class="filter-tab filter-tab-warning {% if active_filter == 'warning' %}is-active{% endif %}"
+            href="{{ url_for('alerts', filter='warning') }}">
+            <span class="dot-sm amber"></span>
+            <span class="filter-tab-label">Warning</span>
+        </a>
+        <a class="filter-tab filter-tab-info {% if active_filter == 'info' %}is-active{% endif %}"
+            href="{{ url_for('alerts', filter='info') }}">
+            <span class="dot-sm blue"></span>
+            <span class="filter-tab-label">Info</span>
+        </a>
+        <a class="filter-tab filter-tab-resolved {% if active_filter == 'resolved' %}is-active{% endif %}"
+            href="{{ url_for('alerts', filter='resolved') }}">
+            <span class="dot-sm green"></span>
+            <span class="filter-tab-label">Resolved</span>
+        </a>
+        <a class="filter-tab filter-tab-unresolved {% if active_filter == 'unresolved' %}is-active{% endif %}"
+            href="{{ url_for('alerts', filter='unresolved') }}">
+            <span class="dot-sm magenta"></span>
+            <span class="filter-tab-label">Active / Unresolved</span>
+        </a>
+    </nav>
+</section>
+
+{% if alerts %}
+<section class="alerts-container" aria-label="Alert list">
+    <ul class="alert-list-grid">
+        {% for alert in alerts %}
+        {% set level_lower = alert.level|lower %}
+        <li class="alert-card card alert-{{ level_lower }} {% if alert.resolved %}is-resolved{% endif %}">
+            <div class="alert-card-header">
+                <div class="alert-badges">
+                    <span class="alert-level-badge level-{{ level_lower }}">
+                        {% if level_lower == 'critical' %}
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        {% elif level_lower == 'warning' %}
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        {% else %}
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        {% endif %}
+                        {{ alert.level|upper }}
+                    </span>
+                    {% if alert.resolved %}
+                    <span class="pill pill-resolved"><span class="dot-sm green"></span> Resolved</span>
+                    {% else %}
+                    <span class="pill pill-active"><span class="dot-sm red"></span> Active Incident</span>
+                    {% endif %}
+                </div>
+                <div class="alert-time-wrap">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span class="alert-time">{{ alert.timestamp }}</span>
+                </div>
+            </div>
+            <div class="alert-card-body">
+                <h3 class="alert-card-title">{{ alert.title }}</h3>
+                <p class="alert-card-msg">{{ alert.message if alert.message else 'No additional telemetric details provided.' }}</p>
+            </div>
+            <div class="alert-card-footer">
+                <div class="alert-target">
+                    <span class="text-muted">Target Host:</span>
+                    <div class="target-node-badge">
+                        <span class="server-dot online"></span>
+                        <strong>{{ alert.server_name }}</strong>
+                    </div>
+                </div>
+                {% if not alert.resolved %}
+                <form method="POST" action="{{ url_for('resolve_alert_route', alert_id=alert.id) }}" style="display:inline;">
+                    <input type="hidden" name="filter" value="{{ active_filter }}">
+                    <button type="submit" class="btn-resolve" title="Acknowledge & Mark Incident Resolved">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Mark Resolved
+                    </button>
+                </form>
+                {% else %}
+                <span class="text-resolved-check">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Resolved &amp; Closed
+                </span>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% else %}
+<section class="card empty-state" aria-label="No alerts state">
+    <div class="empty-icon-halo">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+        </svg>
+    </div>
+    <h2>Perimeter Secure &middot; No Active Alerts</h2>
+    <p class="card-meta">There are currently no security or health incidents matching the filter <strong>"{{ active_filter }}"</strong>.</p>
+</section>
+{% endif %}
+{% endblock %}

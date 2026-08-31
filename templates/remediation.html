@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+
+{% block title %}Automated Remediation · CloudGuard{% endblock %}
+
+{% block header %}
+<h1>Automated Remediation &amp; Self-Healing SOC</h1>
+<p class="topbar-meta">Autonomous incident response, zero-trust corrective actions, post-action validation &amp; audit trail</p>
+{% endblock %}
+
+{% block content %}
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flash-messages" aria-label="Notification banners">
+    {% for category, message in messages %}
+    <div class="flash-banner flash-{{ category }}">
+        <span class="flash-icon">{% if category == 'success' %}✓{% else %}⚠️{% endif %}</span>
+        <span class="flash-text">{{ message }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<!-- Workflow Process Pipeline Banner -->
+<section class="card workflow-pipeline-card" aria-label="Remediation Process Flow">
+    <div class="workflow-header">
+        <div class="status-title-group">
+            <div class="status-beacon-wrap">
+                <span class="status-indicator-dot"></span>
+                <span class="status-beacon-ring"></span>
+            </div>
+            <div>
+                <h2>Autonomous Self-Healing Pipeline</h2>
+                <span class="status-subheadline">Closed-loop detect &rarr; act &rarr; verify &rarr; recover orchestration</span>
+            </div>
+        </div>
+        <span class="pill pill-online"><span class="dot-sm green"></span> Engine Active &amp; Standby</span>
+    </div>
+
+    <div class="pipeline-steps">
+        <div class="step-item">
+            <div class="step-num">01</div>
+            <div class="step-content">
+                <strong class="step-title">Detect</strong>
+                <span class="step-desc">Threshold breaches &amp; heartbeat telemetry</span>
+            </div>
+        </div>
+        <div class="step-arrow">&rarr;</div>
+        <div class="step-item">
+            <div class="step-num">02</div>
+            <div class="step-content">
+                <strong class="step-title">Act</strong>
+                <span class="step-desc">Allowlisted sandboxed mitigation handlers</span>
+            </div>
+        </div>
+        <div class="step-arrow">&rarr;</div>
+        <div class="step-item">
+            <div class="step-num">03</div>
+            <div class="step-content">
+                <strong class="step-title">Verify</strong>
+                <span class="step-desc">Post-action metric recovery validation</span>
+            </div>
+        </div>
+        <div class="step-arrow">&rarr;</div>
+        <div class="step-item">
+            <div class="step-num">04</div>
+            <div class="step-content">
+                <strong class="step-title">Recover</strong>
+                <span class="step-desc">Auto-resolve incident or safely escalate</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="pipeline-stats">
+        <div class="stat-badge"><span class="stat-badge-num">4</span> Core Vectors</div>
+        <div class="stat-badge"><span class="stat-badge-num">{{ rules|length }}</span> Configured Policies</div>
+        <div class="stat-badge"><span class="stat-badge-num">{{ actions|length }}</span> Strict Handlers</div>
+        <div class="stat-badge"><span class="stat-badge-num">{{ logs|length }}</span> Audit Records</div>
+        <div class="stat-badge"><span class="stat-badge-emerald">Zero</span> Shell/Arbitrary Injection</div>
+    </div>
+</section>
+
+<!-- Safe Scenario Simulation Center -->
+<section class="card simulator-card" aria-label="Remediation Scenarios & Simulator">
+    <div class="filter-head">
+        <div>
+            <h2>Interactive Incident Simulator</h2>
+            <p class="card-meta">Execute non-destructive sandboxed self-healing demonstrations for the 4 core threat vectors</p>
+        </div>
+        <div class="simulator-controls">
+            <label class="checkbox-label toggle-escalation" title="Simulates post-action verification failure to test retry counts and escalation">
+                <input type="checkbox" id="sim-failure-toggle" />
+                <span class="toggle-custom-box"></span>
+                <span>Simulate Failure (Test Escalation)</span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Live Simulation Result Banner -->
+    <div id="sim-feedback" style="display:none; margin: 1.25rem 0;" class="flash-banner">
+        <span id="sim-icon" class="flash-icon">✓</span>
+        <span id="sim-msg" class="flash-text"></span>
+    </div>
+
+    <div class="scenario-grid">
+        <!-- Scenario 1: CPU -->
+        <article class="card scenario-card">
+            <div class="scenario-head">
+                <div class="scenario-title-wrap">
+                    <div class="scenario-icon badge-cpu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="16" height="16" x="4" y="4" rx="2"/>
+                            <rect width="6" height="6" x="9" y="9" rx="1"/>
+                            <path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="scenario-title">1. High CPU Spike</h3>
+                        <span class="pill pill-warning pill-sm">Trigger: CPU &gt; 90%</span>
+                    </div>
+                </div>
+            </div>
+            <p class="scenario-desc">Throttles background workers and non-essential telemetry tasks to restore core CPU headroom.</p>
+            <div class="scenario-action-badge">
+                <code>throttle_background_tasks</code>
+            </div>
+            <button type="button" class="btn-primary sim-btn" data-scenario="cpu">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Simulate CPU Spike
+            </button>
+        </article>
+
+        <!-- Scenario 2: Memory -->
+        <article class="card scenario-card">
+            <div class="scenario-head">
+                <div class="scenario-title-wrap">
+                    <div class="scenario-icon badge-mem">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 19v-3"/><path d="M10 19v-3"/><path d="M14 19v-3"/><path d="M18 19v-3"/><path d="M6 8V5"/><path d="M10 8V5"/><path d="M14 8V5"/><path d="M18 8V5"/><rect width="20" height="8" x="2" y="8" rx="2"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="scenario-title">2. Memory Pressure</h3>
+                        <span class="pill pill-warning pill-sm">Trigger: RAM &gt; 95%</span>
+                    </div>
+                </div>
+            </div>
+            <p class="scenario-desc">Invokes Python garbage collection runtime sweeps and clears volatile memory cache allocations.</p>
+            <div class="scenario-action-badge">
+                <code>clear_memory_cache</code>
+            </div>
+            <button type="button" class="btn-primary sim-btn" data-scenario="memory">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Simulate High RAM
+            </button>
+        </article>
+
+        <!-- Scenario 3: Disk Space -->
+        <article class="card scenario-card">
+            <div class="scenario-head">
+                <div class="scenario-title-wrap">
+                    <div class="scenario-icon badge-disk">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="scenario-title">3. High Disk Storage</h3>
+                        <span class="pill pill-warning pill-sm">Trigger: Disk &gt; 90%</span>
+                    </div>
+                </div>
+            </div>
+            <p class="scenario-desc">Purges sandboxed temporary cache files inside <code>logs/temp_cache</code> safely without touching user data.</p>
+            <div class="scenario-action-badge">
+                <code>clean_temp_cache</code>
+            </div>
+            <button type="button" class="btn-primary sim-btn" data-scenario="disk">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Simulate Disk Full
+            </button>
+        </article>
+
+        <!-- Scenario 4: Service Failure -->
+        <article class="card scenario-card">
+            <div class="scenario-head">
+                <div class="scenario-title-wrap">
+                    <div class="scenario-icon badge-gear">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="2"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="scenario-title">4. Service Unhealthy</h3>
+                        <span class="pill pill-offline pill-sm">Heartbeat Timeout</span>
+                    </div>
+                </div>
+            </div>
+            <p class="scenario-desc">Executes controlled restart cycle for managed service (<code>web-worker</code>) and re-verifies health probe.</p>
+            <div class="scenario-action-badge">
+                <code>restart_service</code>
+            </div>
+            <button type="button" class="btn-primary sim-btn" data-scenario="service">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Simulate Service Down
+            </button>
+        </article>
+    </div>
+</section>
+
+<!-- Active Rules & Allowed Actions (Split Grid) -->
+<section class="split-grid">
+    <!-- Active Remediation Rules -->
+    <article class="card">
+        <div class="card-header-flex">
+            <div>
+                <h2>Active Remediation Policies</h2>
+                <p class="card-meta">Configured trigger policies, cooldown windows, and retry limits</p>
+            </div>
+            <span class="badge-subtle">{{ rules|length }} Policies</span>
+        </div>
+        <div class="table-wrap">
+            <table class="resource-table">
+                <thead>
+                    <tr>
+                        <th>Policy Name</th>
+                        <th>Trigger</th>
+                        <th>Allowed Handler</th>
+                        <th>Cooldown</th>
+                        <th>Retries</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rule in rules %}
+                    <tr>
+                        <td><strong>{{ rule.name }}</strong></td>
+                        <td><span class="pill pill-warning pill-sm">{{ rule.trigger_type|upper }}</span></td>
+                        <td><code>{{ rule.action_type }}</code></td>
+                        <td><span class="metric-num">{{ rule.cooldown_seconds }}s</span></td>
+                        <td><span class="pill pill-neutral pill-sm">{{ rule.max_retries }}x</span></td>
+                        <td>
+                            {% if rule.enabled %}
+                            <span class="pill pill-online pill-sm"><span class="dot-sm green"></span> Enabled</span>
+                            {% else %}
+                            <span class="pill pill-offline pill-sm">Disabled</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted" style="padding:1.5rem;">No remediation rules configured.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <!-- Allowed Actions & Managed Services -->
+    <article class="card">
+        <div class="card-header-flex">
+            <div>
+                <h2>Strict Action Allowlist</h2>
+                <p class="card-meta">Predefined safe handlers permitted by ACTION_REGISTRY</p>
+            </div>
+            <span class="pill pill-online pill-sm"><span class="dot-sm green"></span> Sandboxed</span>
+        </div>
+        
+        <ul class="allowlist-items">
+            {% for act in actions %}
+            <li class="allowlist-item">
+                <div class="allowlist-top">
+                    <strong class="allowlist-title">{{ act.title }}</strong>
+                    <span class="pill pill-online pill-sm">{{ act.safety_level }}</span>
+                </div>
+                <div class="allowlist-desc">
+                    <code>{{ act.action_key }}</code> &middot; {{ act.description }}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <div class="managed-services-box">
+            <h3 class="managed-services-title">Managed Services State</h3>
+            <div class="managed-services-grid">
+                {% for srv in services %}
+                <div class="service-node-card">
+                    <div class="service-node-info">
+                        <strong class="service-node-name">{{ srv.name }}</strong>
+                        <span class="service-node-meta">Restarts: {{ srv.restart_count }}</span>
+                    </div>
+                    <span class="pill {% if srv.status == 'Healthy' %}pill-online{% elif srv.status == 'Restarting' %}pill-warning{% else %}pill-offline{% endif %} pill-sm">
+                        {{ srv.status }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </article>
+</section>
+
+<!-- Remediation Execution Audit History -->
+<section class="card" aria-label="Remediation history log table">
+    <div class="filter-head">
+        <div>
+            <h2>Remediation Execution Audit Logs</h2>
+            <p class="card-meta">Chronological record of automated incident responses, verification benchmarks, and escalations</p>
+        </div>
+        <span class="badge-subtle" id="logs-count">{{ logs|length }} Audit Records</span>
+    </div>
+
+    <div class="table-wrap">
+        <table class="resource-table">
+            <thead>
+                <tr>
+                    <th>Execution Status</th>
+                    <th>Timestamp</th>
+                    <th>Policy / Handler</th>
+                    <th>Target Node</th>
+                    <th>Attempt</th>
+                    <th>Pre &rarr; Post Metric</th>
+                    <th>Outcome Verification</th>
+                </tr>
+            </thead>
+            <tbody id="logs-table-body">
+                {% for log in logs %}
+                {% set s_lower = log.status|lower %}
+                <tr>
+                    <td>
+                        {% if s_lower == 'success' %}
+                        <span class="pill pill-online"><span class="dot-sm green"></span> SUCCESS</span>
+                        {% elif s_lower == 'failed' %}
+                        <span class="pill pill-offline"><span class="dot-sm red"></span> FAILED</span>
+                        {% elif s_lower == 'escalated' %}
+                        <span class="pill pill-escalated"><span class="dot-sm magenta"></span> ESCALATED</span>
+                        {% elif s_lower == 'skipped_cooldown' %}
+                        <span class="pill pill-warning"><span class="dot-sm amber"></span> COOLDOWN</span>
+                        {% elif s_lower in ['in_progress', 'pending'] %}
+                        <span class="pill pill-progress"><span class="dot-sm blue"></span> {{ log.status }}</span>
+                        {% else %}
+                        <span class="pill">{{ log.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="timestamp-badge">{{ log.started_at }}</span></td>
+                    <td>
+                        <strong>{{ log.rule_name }}</strong>
+                        <div class="text-code-sub"><code>{{ log.action_type }}</code></div>
+                    </td>
+                    <td>
+                        <div class="resource-cell">
+                            <span class="server-dot online"></span>
+                            <span>{{ log.server_name }}</span>
+                        </div>
+                    </td>
+                    <td><span class="pill pill-neutral pill-sm">{{ log.attempt_count }}x</span></td>
+                    <td>
+                        {% if log.pre_metric_val is not none and log.post_metric_val is not none %}
+                        <span class="metric-pre">{{ log.pre_metric_val }}%</span> &rarr; <span class="metric-post">{{ log.post_metric_val }}%</span>
+                        {% elif log.pre_metric_val is not none %}
+                        <span>{{ log.pre_metric_val }}%</span>
+                        {% else %}
+                        <span class="text-muted">&mdash;</span>
+                        {% endif %}
+                    </td>
+                    <td class="log-details-cell">{{ log.details if log.details else '&mdash;' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted" style="padding:2.5rem;">No remediation history recorded yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Interactive Simulator Client Script -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const simButtons = document.querySelectorAll(".sim-btn");
+    const failureToggle = document.getElementById("sim-failure-toggle");
+    const feedbackEl = document.getElementById("sim-feedback");
+    const iconEl = document.getElementById("sim-icon");
+    const msgEl = document.getElementById("sim-msg");
+
+    simButtons.forEach((btn) => {
+        btn.addEventListener("click", async () => {
+            const scenario = btn.getAttribute("data-scenario");
+            const simulateFailure = failureToggle ? failureToggle.checked : false;
+
+            // UI loading state
+            btn.disabled = true;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = `<span class="spinner-sm"></span> Executing...`;
+
+            try {
+                const response = await fetch("/api/remediation/simulate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        scenario: scenario,
+                        simulate_failure: simulateFailure
+                    })
+                });
+
+                const result = await response.json();
+
+                // Show feedback banner
+                feedbackEl.style.display = "flex";
+                if (result.success) {
+                    feedbackEl.className = "flash-banner flash-success";
+                    iconEl.textContent = "✓";
+                    msgEl.textContent = `[${result.status}] ${result.message}`;
+                } else if (result.status === "SKIPPED_COOLDOWN") {
+                    feedbackEl.className = "flash-banner flash-warning";
+                    iconEl.textContent = "⏳";
+                    msgEl.textContent = `[COOLDOWN] ${result.message}`;
+                } else if (result.status === "ESCALATED") {
+                    feedbackEl.className = "flash-banner flash-error";
+                    iconEl.textContent = "🚨";
+                    msgEl.textContent = `[ESCALATED] ${result.message}`;
+                } else {
+                    feedbackEl.className = "flash-banner flash-error";
+                    iconEl.textContent = "⚠️";
+                    msgEl.textContent = `[${result.status || 'FAILED'}] ${result.message}`;
+                }
+
+                // Refresh logs table
+                await refreshLogsTable();
+            } catch (err) {
+                feedbackEl.style.display = "flex";
+                feedbackEl.className = "flash-banner flash-error";
+                iconEl.textContent = "⚠️";
+                msgEl.textContent = "Failed to communicate with remediation API: " + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        });
+    });
+
+    async function refreshLogsTable() {
+        try {
+            const res = await fetch("/api/remediation/logs?limit=40");
+            const data = await res.json();
+            if (!data.logs) return;
+
+            const tbody = document.getElementById("logs-table-body");
+            const countEl = document.getElementById("logs-count");
+            if (countEl) countEl.textContent = `${data.logs.length} Audit Records`;
+            if (!tbody) return;
+
+            if (data.logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:2.5rem;">No remediation history recorded yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.logs.map((log) => {
+                const s = (log.status || "").toLowerCase();
+                let badgeHtml = `<span class="pill">${log.status}</span>`;
+                if (s === "success") {
+                    badgeHtml = `<span class="pill pill-online"><span class="dot-sm green"></span> SUCCESS</span>`;
+                } else if (s === "failed") {
+                    badgeHtml = `<span class="pill pill-offline"><span class="dot-sm red"></span> FAILED</span>`;
+                } else if (s === "escalated") {
+                    badgeHtml = `<span class="pill pill-escalated"><span class="dot-sm magenta"></span> ESCALATED</span>`;
+                } else if (s === "skipped_cooldown") {
+                    badgeHtml = `<span class="pill pill-warning"><span class="dot-sm amber"></span> COOLDOWN</span>`;
+                } else if (s === "in_progress" || s === "pending") {
+                    badgeHtml = `<span class="pill pill-progress"><span class="dot-sm blue"></span> ${log.status}</span>`;
+                }
+
+                let metricHtml = `<span class="text-muted">&mdash;</span>`;
+                if (log.pre_metric_val !== null && log.post_metric_val !== null) {
+                    metricHtml = `<span class="metric-pre">${log.pre_metric_val}%</span> &rarr; <span class="metric-post">${log.post_metric_val}%</span>`;
+                } else if (log.pre_metric_val !== null) {
+                    metricHtml = `<span>${log.pre_metric_val}%</span>`;
+                }
+
+                return `
+                    <tr>
+                        <td>${badgeHtml}</td>
+                        <td><span class="timestamp-badge">${log.started_at}</span></td>
+                        <td>
+                            <strong>${log.rule_name || 'Manual'}</strong>
+                            <div class="text-code-sub"><code>${log.action_type}</code></div>
+                        </td>
+                        <td>
+                            <div class="resource-cell">
+                                <span class="server-dot online"></span>
+                                <span>${log.server_name || 'Localhost'}</span>
+                            </div>
+                        </td>
+                        <td><span class="pill pill-neutral pill-sm">${log.attempt_count}x</span></td>
+                        <td>${metricHtml}</td>
+                        <td class="log-details-cell">${log.details || '&mdash;'}</td>
+                    </tr>
+                `;
+            }).join("");
+        } catch (e) {
+            console.error("Error refreshing logs:", e);
+        }
+    }
+});
+</script>
+{% endblock %}

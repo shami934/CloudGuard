@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} · CloudGuard{% endblock %}
+
+{% block header %}
+<h1>{{ page_title }}</h1>
+<p class="topbar-meta">CloudGuard System Diagnostic</p>
+{% endblock %}
+
+{% block content %}
+<article class="card empty-state">
+  <div class="empty-icon">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+  </div>
+  <h2>{{ page_title }}</h2>
+  <p class="card-meta">
+    This endpoint is currently unavailable or a placeholder.
+  </p>
+</article>
+{% endblock %}
