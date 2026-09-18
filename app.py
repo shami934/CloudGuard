@@ -13,12 +13,26 @@ import monitor
 import remediation_actions
 import remediation_engine
 
+# Configure AWS SDK / IMDS defaults for reliable EC2 IAM Role resolution
+os.environ.setdefault("AWS_METADATA_SERVICE_TIMEOUT", "10")
+os.environ.setdefault("AWS_METADATA_SERVICE_NUM_ATTEMPTS", "5")
+os.environ.setdefault("AWS_EC2_METADATA_DISABLED", "false")
+
+# Prevent HTTP proxy from intercepting link-local EC2 IMDS calls (169.254.169.254)
+_existing_no_proxy = os.environ.get("NO_PROXY", os.environ.get("no_proxy", ""))
+if "169.254.169.254" not in _existing_no_proxy:
+    _merged_no_proxy = f"{_existing_no_proxy},169.254.169.254".strip(",") if _existing_no_proxy else "169.254.169.254"
+    os.environ["NO_PROXY"] = _merged_no_proxy
+    os.environ["no_proxy"] = _merged_no_proxy
+
 try:
     import boto3
-    from botocore.exceptions import BotoCoreError, ClientError
+    from botocore.config import Config
+    from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 except ImportError:
     boto3 = None
-    BotoCoreError = ClientError = Exception
+    Config = None
+    BotoCoreError = ClientError = NoCredentialsError = Exception
 
 logger = logging.getLogger("cloudguard_aws")
 
@@ -26,8 +40,11 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "cloud-monitoring-secret-key")
 
 # AWS CloudWatch EC2 Configuration
-AWS_REGION = os.environ.get("AWS_REGION", "ap-southeast-2")
+AWS_REGION = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "ap-southeast-2"))
 AWS_EC2_INSTANCE_ID = os.environ.get("AWS_EC2_INSTANCE_ID", "i-076ce4fc220f4f297")
+
+os.environ.setdefault("AWS_DEFAULT_REGION", AWS_REGION)
+os.environ.setdefault("AWS_REGION", AWS_REGION)
 
 _cw_client = None
 _aws_cache = {
@@ -41,19 +58,58 @@ _aws_cache = {
 }
 
 
+def _get_cloudwatch_client():
+    """Create or return a CloudWatch client using the EC2 IAM role / IMDS provider chain.
+    
+    Uses an explicit boto3.Session to ensure proper credential loading from the EC2
+    Instance Metadata Service without poisoning the client on transient latency.
+    """
+    global _cw_client
+    if _cw_client is not None:
+        return _cw_client
+
+    if boto3 is None:
+        return None
+
+    try:
+        session = boto3.Session(region_name=AWS_REGION)
+        creds = session.get_credentials()
+
+        cfg = Config(
+            region_name=AWS_REGION,
+            connect_timeout=5,
+            read_timeout=10,
+            retries={"max_attempts": 3, "mode": "standard"},
+        ) if Config else None
+
+        client = session.client("cloudwatch", config=cfg) if cfg else session.client("cloudwatch")
+        if creds is not None:
+            _cw_client = client
+        return client
+    except Exception as e:
+        logger.warning(f"Failed to initialize AWS CloudWatch client: {e}")
+        _cw_client = None
+        return None
+
+
 def get_aws_cloudwatch_cpu(force_refresh=False):
     """Retrieve AWS EC2 CPUUtilization from CloudWatch using the EC2 IAM role.
     
     Uses boto3 default credential chain (EC2 IAM role CloudGuardEC2Role).
     Caches the metric for 60 seconds to respect CloudWatch's 5-minute aggregation
     cadence and avoid unnecessary API requests during rapid 5-second polling.
+    On transient errors, retries after 5 seconds to ensure fast recovery upon credential availability.
     Safely handles missing credentials, network delays, and empty datapoints.
     """
     global _cw_client, _aws_cache
     now_ts = time.time()
 
-    # Cache hit check (60-second TTL) to respect CloudWatch 5m aggregation cadence
-    if not force_refresh and (now_ts - _aws_cache["last_fetched"]) < 60 and _aws_cache["last_fetched"] > 0:
+    # Cache hit check:
+    # On success ('available' or 'no_datapoints'), cache for 60 seconds to respect CloudWatch 5m cadence.
+    # On error, retry after 5 seconds to guarantee fast recovery once IAM role/IMDS credentials resolve.
+    is_cached_success = _aws_cache.get("status") in ("available", "no_datapoints")
+    cache_ttl = 60 if is_cached_success else 5
+    if not force_refresh and (now_ts - _aws_cache.get("last_fetched", 0)) < cache_ttl and _aws_cache.get("last_fetched", 0) > 0:
         return _aws_cache
 
     if boto3 is None:
@@ -61,18 +117,27 @@ def get_aws_cloudwatch_cpu(force_refresh=False):
             "last_fetched": now_ts,
             "status": "boto3_missing",
             "error": "boto3 is not installed",
+            "instance_id": AWS_EC2_INSTANCE_ID,
+            "region": AWS_REGION,
         })
         return _aws_cache
 
     try:
-        if _cw_client is None:
-            # Uses EC2 IAM role credentials automatically via boto3 standard credential chain
-            _cw_client = boto3.client("cloudwatch", region_name=AWS_REGION)
+        client = _get_cloudwatch_client()
+        if client is None:
+            _aws_cache.update({
+                "last_fetched": now_ts,
+                "status": "error",
+                "error": "Unable to locate credentials (EC2 IAM role pending)",
+                "instance_id": AWS_EC2_INSTANCE_ID,
+                "region": AWS_REGION,
+            })
+            return _aws_cache
 
         end_time = datetime.now(timezone.utc)
-        start_time = end_time - timedelta(minutes=60)
+        start_time = end_time - timedelta(minutes=120)
 
-        response = _cw_client.get_metric_statistics(
+        response = client.get_metric_statistics(
             Namespace="AWS/EC2",
             MetricName="CPUUtilization",
             Dimensions=[{"Name": "InstanceId", "Value": AWS_EC2_INSTANCE_ID}],
@@ -81,6 +146,9 @@ def get_aws_cloudwatch_cpu(force_refresh=False):
             Period=300,
             Statistics=["Average"],
         )
+
+        # Successful call - safe to cache client if not already cached
+        _cw_client = client
 
         datapoints = response.get("Datapoints", [])
         if datapoints:
@@ -98,15 +166,18 @@ def get_aws_cloudwatch_cpu(force_refresh=False):
             })
         else:
             _aws_cache.update({
+                "cpu_percent": None,
                 "last_fetched": now_ts,
                 "status": "no_datapoints",
-                "error": "No 5-minute CloudWatch datapoints found in the last 60 minutes.",
+                "error": "No 5-minute CloudWatch datapoints found in the last 120 minutes.",
                 "instance_id": AWS_EC2_INSTANCE_ID,
                 "region": AWS_REGION,
             })
     except Exception as e:
         logger.warning(f"CloudWatch query notice: {e}")
+        _cw_client = None  # Reset client on failure so next cycle retries with a fresh session
         _aws_cache.update({
+            "cpu_percent": None,
             "last_fetched": now_ts,
             "status": "error",
             "error": str(e),
