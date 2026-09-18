@@ -4,14 +4,118 @@ Routes render HTML pages and serve API endpoints for live metrics and remediatio
 """
 
 import os
+import time
+import logging
+from datetime import datetime, timedelta, timezone
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 import database
 import monitor
 import remediation_actions
 import remediation_engine
 
+try:
+    import boto3
+    from botocore.exceptions import BotoCoreError, ClientError
+except ImportError:
+    boto3 = None
+    BotoCoreError = ClientError = Exception
+
+logger = logging.getLogger("cloudguard_aws")
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "cloud-monitoring-secret-key")
+
+# AWS CloudWatch EC2 Configuration
+AWS_REGION = os.environ.get("AWS_REGION", "ap-southeast-2")
+AWS_EC2_INSTANCE_ID = os.environ.get("AWS_EC2_INSTANCE_ID", "i-076ce4fc220f4f297")
+
+_cw_client = None
+_aws_cache = {
+    "cpu_percent": None,
+    "last_fetched": 0,
+    "last_datapoint_time": None,
+    "status": "initializing",
+    "error": None,
+    "instance_id": AWS_EC2_INSTANCE_ID,
+    "region": AWS_REGION,
+}
+
+
+def get_aws_cloudwatch_cpu(force_refresh=False):
+    """Retrieve AWS EC2 CPUUtilization from CloudWatch using the EC2 IAM role.
+    
+    Uses boto3 default credential chain (EC2 IAM role CloudGuardEC2Role).
+    Caches the metric for 60 seconds to respect CloudWatch's 5-minute aggregation
+    cadence and avoid unnecessary API requests during rapid 5-second polling.
+    Safely handles missing credentials, network delays, and empty datapoints.
+    """
+    global _cw_client, _aws_cache
+    now_ts = time.time()
+
+    # Cache hit check (60-second TTL) to respect CloudWatch 5m aggregation cadence
+    if not force_refresh and (now_ts - _aws_cache["last_fetched"]) < 60 and _aws_cache["last_fetched"] > 0:
+        return _aws_cache
+
+    if boto3 is None:
+        _aws_cache.update({
+            "last_fetched": now_ts,
+            "status": "boto3_missing",
+            "error": "boto3 is not installed",
+        })
+        return _aws_cache
+
+    try:
+        if _cw_client is None:
+            # Uses EC2 IAM role credentials automatically via boto3 standard credential chain
+            _cw_client = boto3.client("cloudwatch", region_name=AWS_REGION)
+
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(minutes=60)
+
+        response = _cw_client.get_metric_statistics(
+            Namespace="AWS/EC2",
+            MetricName="CPUUtilization",
+            Dimensions=[{"Name": "InstanceId", "Value": AWS_EC2_INSTANCE_ID}],
+            StartTime=start_time,
+            EndTime=end_time,
+            Period=300,
+            Statistics=["Average"],
+        )
+
+        datapoints = response.get("Datapoints", [])
+        if datapoints:
+            latest = sorted(datapoints, key=lambda x: x["Timestamp"])[-1]
+            cpu_val = round(float(latest["Average"]), 1)
+            dp_time = latest["Timestamp"].strftime("%H:%M:%S UTC")
+            _aws_cache.update({
+                "cpu_percent": cpu_val,
+                "last_fetched": now_ts,
+                "last_datapoint_time": dp_time,
+                "status": "available",
+                "error": None,
+                "instance_id": AWS_EC2_INSTANCE_ID,
+                "region": AWS_REGION,
+            })
+        else:
+            _aws_cache.update({
+                "last_fetched": now_ts,
+                "status": "no_datapoints",
+                "error": "No 5-minute CloudWatch datapoints found in the last 60 minutes.",
+                "instance_id": AWS_EC2_INSTANCE_ID,
+                "region": AWS_REGION,
+            })
+    except Exception as e:
+        logger.warning(f"CloudWatch query notice: {e}")
+        _aws_cache.update({
+            "last_fetched": now_ts,
+            "status": "error",
+            "error": str(e),
+            "instance_id": AWS_EC2_INSTANCE_ID,
+            "region": AWS_REGION,
+        })
+
+    return _aws_cache
+
 
 # Initialize database tables on app startup
 database.init_database()
@@ -56,12 +160,18 @@ def api_metrics():
         # Fetch recent history for chart display
         recent_history = database.get_recent_metrics(server_id=server_id, limit=12)
 
+        # Retrieve AWS EC2 CloudWatch CPU metric safely
+        aws_info = get_aws_cloudwatch_cpu()
+        aws_cpu_val = aws_info.get("cpu_percent")
+
         return jsonify({
             "status": "success",
             "current": current,
             "history": recent_history,
             "server_status": server_status,
             "interval_seconds": interval_sec,
+            "aws_cpu_percent": aws_cpu_val,
+            "aws_cloudwatch": aws_info,
         })
     except Exception as e:
         return jsonify({

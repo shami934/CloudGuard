@@ -11,8 +11,9 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 
-<body>
-  <!-- CloudGuard Welcome / Splash Screen (Visible for Exactly 5 Seconds) -->
+<body data-page="{{ active_page }}">
+  {% if active_page == 'dashboard' %}
+  <!-- CloudGuard Welcome / Splash Screen (Visible on Initial Dashboard Load) -->
   <div id="splash-screen" class="splash-screen" aria-label="Loading CloudGuard Security Operations Center">
     <div class="splash-cyber-grid"></div>
     <div class="splash-ambient-glow"></div>
@@ -50,6 +51,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
   <div class="layout">
     <!-- Cyber SOC Sidebar Navigation -->

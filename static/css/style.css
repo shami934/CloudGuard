@@ -1191,6 +1191,52 @@ code,
   border-radius: var(--radius-xs);
 }
 
+/* AWS CloudWatch Specialized Styling */
+.pill-aws {
+  background: rgba(255, 153, 0, 0.14);
+  border: 1px solid rgba(255, 153, 0, 0.42);
+  color: #ff9900;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.bar-aws {
+  background: linear-gradient(90deg, #ff9900, #ffb84d) !important;
+  box-shadow: 0 0 10px rgba(255, 153, 0, 0.45);
+}
+
+.icon-aws {
+  background: rgba(255, 153, 0, 0.12) !important;
+  border: 1px solid rgba(255, 153, 0, 0.35) !important;
+  color: #ff9900 !important;
+}
+
+.text-aws {
+  color: #ffb84d;
+}
+
+.card-aws {
+  border-color: rgba(255, 153, 0, 0.22);
+}
+
+.card-aws:hover {
+  border-color: rgba(255, 153, 0, 0.52);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65), 0 0 20px rgba(255, 153, 0, 0.2);
+}
+
+.metric-source-tag {
+  display: inline-block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  margin-top: 0.15rem;
+}
+
+.aws-source-tag {
+  color: #ffb84d;
+}
+
 /* Dots */
 .dot-sm {
   width: 6px;

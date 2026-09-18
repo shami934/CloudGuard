@@ -38,7 +38,7 @@
 
 <!-- Cyber SOC Metric Grid -->
 <section class="metric-grid" aria-label="System metrics">
-  <!-- CPU Metric Card -->
+  <!-- Local Host CPU Metric Card -->
   <article class="card metric-card">
     <div class="metric-card-head">
       <div class="metric-title-group">
@@ -49,13 +49,16 @@
             <path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/>
           </svg>
         </div>
-        <h2>CPU Utilization</h2>
+        <div>
+          <h2>Local Host CPU</h2>
+          <span class="metric-source-tag">psutil &middot; Realtime</span>
+        </div>
       </div>
       <span class="pill pill-online" id="cpu-pill">Normal</span>
     </div>
     <div class="metric-value-wrap">
       <p class="metric-value" id="cpu-value">42%</p>
-      <span class="metric-sub-label">Aggregate Load</span>
+      <span class="metric-sub-label">Local System Load</span>
     </div>
     <div class="bar" aria-hidden="true">
       <span class="bar-fill" id="cpu-bar" style="width: 42%"></span>
@@ -63,6 +66,36 @@
     <div class="metric-footer-row">
       <p class="card-meta">Average across active CPU cores</p>
       <span class="metric-spark-label">Target &lt; 70%</span>
+    </div>
+  </article>
+
+  <!-- AWS EC2 CloudWatch CPU Metric Card -->
+  <article class="card metric-card card-aws" id="aws-ec2-card">
+    <div class="metric-card-head">
+      <div class="metric-title-group">
+        <div class="metric-icon-box icon-aws" title="Amazon Web Services CloudWatch">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+            <polyline points="12 12 12 16 14 14"/>
+          </svg>
+        </div>
+        <div>
+          <h2>AWS EC2 CPU</h2>
+          <span class="metric-source-tag aws-source-tag">CloudWatch &middot; ap-southeast-2</span>
+        </div>
+      </div>
+      <span class="pill pill-aws" id="aws-cpu-pill">CloudWatch</span>
+    </div>
+    <div class="metric-value-wrap">
+      <p class="metric-value text-aws" id="aws-cpu-value"><span class="text-muted">--</span><span class="unit">%</span></p>
+      <span class="metric-sub-label" id="aws-instance-label">Instance: i-076ce4fc220f4f297</span>
+    </div>
+    <div class="bar" aria-hidden="true">
+      <span class="bar-fill bar-aws" id="aws-cpu-bar" style="width: 0%"></span>
+    </div>
+    <div class="metric-footer-row">
+      <p class="card-meta" id="aws-cpu-meta">EC2 CloudWatch 5-min Average</p>
+      <span class="metric-spark-label" id="aws-cpu-time">IAM Role</span>
     </div>
   </article>
 

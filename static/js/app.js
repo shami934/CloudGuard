@@ -6,13 +6,24 @@
 let pollTimer = null;
 let currentPollInterval = 5000;
 
+function isDashboardPage() {
+  const page = document.body ? document.body.getAttribute("data-page") : null;
+  if (page) {
+    return page === "dashboard";
+  }
+  return !!document.getElementById("cpu-value") && !!document.querySelector(".metric-grid");
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initSplashScreen();
   initLiveClock();
   setupMobileMenu();
-  fetchMetrics();
   setupHistoryChart();
-  scheduleNextPoll(currentPollInterval);
+
+  // Only initiate live telemetry polling on the dashboard
+  if (isDashboardPage()) {
+    fetchMetrics();
+  }
 });
 
 /* ==========================================================================
@@ -21,6 +32,24 @@ document.addEventListener("DOMContentLoaded", () => {
 function initSplashScreen() {
   const splash = document.getElementById("splash-screen");
   if (!splash) return;
+
+  // Only trigger on the dashboard view
+  if (!isDashboardPage()) {
+    splash.style.display = "none";
+    return;
+  }
+
+  // Check if splash screen was already displayed during this browser session
+  try {
+    if (sessionStorage.getItem("cloudguard_splash_shown")) {
+      splash.style.display = "none";
+      return;
+    }
+    // Mark as shown so navigating between pages in this session doesn't re-trigger splash
+    sessionStorage.setItem("cloudguard_splash_shown", "true");
+  } catch (e) {
+    // Graceful fallback if storage access is restricted
+  }
 
   const statusText = document.getElementById("splash-status-text");
   const progressBar = document.getElementById("splash-progress");
@@ -89,9 +118,9 @@ function initLiveClock() {
    ========================================================================== */
 function scheduleNextPoll(intervalMs) {
   if (pollTimer) clearTimeout(pollTimer);
+  if (!isDashboardPage()) return;
   pollTimer = setTimeout(async () => {
     await fetchMetrics();
-    scheduleNextPoll(currentPollInterval);
   }, intervalMs);
 }
 
@@ -118,6 +147,7 @@ function setupMobileMenu() {
 }
 
 async function fetchMetrics() {
+  if (!isDashboardPage()) return;
   try {
     const response = await fetch("/api/metrics");
     if (!response.ok) {
@@ -125,21 +155,25 @@ async function fetchMetrics() {
     }
     const data = await response.json();
     if (data.status === "success" && data.current) {
-      updateDashboard(data.current, data.history || []);
-      if (data.interval_seconds && data.interval_seconds > 0) {
-        currentPollInterval = data.interval_seconds * 1000;
+      updateDashboard(data.current, data.history || [], data.aws_cpu_percent, data.aws_cloudwatch);
+      if (data.interval_seconds && Number(data.interval_seconds) > 0) {
+        currentPollInterval = Number(data.interval_seconds) * 1000;
       }
     }
   } catch (error) {
     console.error("Failed to fetch metrics:", error);
+  } finally {
+    if (isDashboardPage()) {
+      scheduleNextPoll(currentPollInterval);
+    }
   }
 }
 
 /* ==========================================================================
    4. Live Dashboard Telemetry DOM Updates
    ========================================================================== */
-function updateDashboard(current, history) {
-  // Update CPU
+function updateDashboard(current, history, awsCpu = null, awsInfo = null) {
+  // Update Local Host CPU
   const cpuVal = document.getElementById("cpu-value");
   const cpuBar = document.getElementById("cpu-bar");
   const cpuPill = document.getElementById("cpu-pill");
@@ -160,6 +194,75 @@ function updateDashboard(current, history) {
     } else {
       cpuPill.textContent = "Normal";
       cpuPill.className = "pill pill-online";
+    }
+  }
+
+  // Update AWS EC2 CloudWatch CPU Card
+  const awsVal = document.getElementById("aws-cpu-value");
+  const awsBar = document.getElementById("aws-cpu-bar");
+  const awsPill = document.getElementById("aws-cpu-pill");
+  const awsMeta = document.getElementById("aws-cpu-meta");
+  const awsTime = document.getElementById("aws-cpu-time");
+  const awsInstLabel = document.getElementById("aws-instance-label");
+
+  if (awsVal) {
+    if (awsCpu !== null && awsCpu !== undefined) {
+      awsVal.textContent = `${awsCpu}%`;
+      if (awsBar) {
+        awsBar.style.width = `${Math.min(awsCpu, 100)}%`;
+        awsBar.className = "bar-fill bar-aws";
+        if (awsCpu >= 90) awsBar.classList.add("bar-critical");
+        else if (awsCpu >= 70) awsBar.classList.add("bar-warn");
+      }
+      if (awsPill) {
+        if (awsCpu >= 90) {
+          awsPill.textContent = "Critical";
+          awsPill.className = "pill pill-offline";
+        } else if (awsCpu >= 70) {
+          awsPill.textContent = "Elevated";
+          awsPill.className = "pill pill-warning";
+        } else {
+          awsPill.textContent = "Optimal";
+          awsPill.className = "pill pill-online";
+        }
+      }
+      if (awsTime && awsInfo && awsInfo.last_datapoint_time) {
+        awsTime.textContent = awsInfo.last_datapoint_time;
+      }
+      if (awsMeta && awsInfo) {
+        awsMeta.textContent = `EC2: ${awsInfo.instance_id || 'i-076ce4fc220f4f297'} · CloudWatch 5m`;
+      }
+    } else {
+      // CloudWatch state when datapoint is not yet received or awaiting IAM/CloudWatch polling
+      if (awsBar) awsBar.style.width = "0%";
+      if (awsPill) {
+        if (awsInfo && awsInfo.status === "no_datapoints") {
+          awsPill.textContent = "No Data";
+          awsPill.className = "pill pill-warning";
+        } else if (awsInfo && awsInfo.status === "error") {
+          awsPill.textContent = "Standby";
+          awsPill.className = "pill pill-neutral";
+        } else {
+          awsPill.textContent = "CloudWatch";
+          awsPill.className = "pill pill-aws";
+        }
+      }
+      if (awsMeta && awsInfo) {
+        if (awsInfo.status === "no_datapoints") {
+          awsMeta.textContent = "No 5m datapoints in last 60m";
+        } else if (awsInfo.error) {
+          const errMsg = awsInfo.error.length > 36 ? awsInfo.error.substring(0, 33) + "..." : awsInfo.error;
+          awsMeta.textContent = `CloudWatch: ${errMsg}`;
+        } else {
+          awsMeta.textContent = "CloudWatch 5-min Average";
+        }
+      }
+      if (awsTime && awsInfo) {
+        awsTime.textContent = awsInfo.status === "available" ? "Synced" : "IAM Active";
+      }
+    }
+    if (awsInstLabel && awsInfo && awsInfo.instance_id) {
+      awsInstLabel.textContent = `Instance: ${awsInfo.instance_id}`;
     }
   }
 
