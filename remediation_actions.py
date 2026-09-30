@@ -217,17 +217,32 @@ def get_registered_actions() -> List[Dict[str, Any]]:
     return actions_list
 
 
+# Shorthand alias mappings for flexible invocation
+ACTION_ALIASES = {
+    "clear_memory_cache": "flush_memory_caches",
+    "clean_temp_cache": "clean_temp_cache_files",
+    "restart_service": "restart_managed_service",
+}
+
+
+def resolve_canonical_action_name(action_name: str) -> str:
+    """Resolve an action name or alias to its canonical ACTION_REGISTRY key."""
+    return ACTION_ALIASES.get(action_name, action_name)
+
+
 def is_action_allowed(action_name: str) -> bool:
-    """Check if an action key exists in the allowlist."""
-    return action_name in ACTION_REGISTRY
+    """Check if an action key exists in the allowlist (or matches a known alias)."""
+    canonical = resolve_canonical_action_name(action_name)
+    return canonical in ACTION_REGISTRY
 
 
 def execute_action(action_name: str, target_resource: str = "Localhost", **kwargs: Any) -> Dict[str, Any]:
     """Execute an action strictly through the ACTION_REGISTRY allowlist.
 
-    Any action not explicitly registered in ACTION_REGISTRY is rejected.
+    Any action not explicitly registered in ACTION_REGISTRY (or mapped in ACTION_ALIASES) is rejected.
     """
-    if not is_action_allowed(action_name):
+    canonical = resolve_canonical_action_name(action_name)
+    if not is_action_allowed(canonical):
         logger.warning(f"Unauthorized action execution attempt rejected: '{action_name}'")
         return {
             "success": False,
@@ -239,7 +254,7 @@ def execute_action(action_name: str, target_resource: str = "Localhost", **kwarg
             },
         }
 
-    handler = ACTION_REGISTRY[action_name]["handler"]
+    handler = ACTION_REGISTRY[canonical]["handler"]
     try:
         result = handler(target_resource=target_resource, **kwargs)
         return result

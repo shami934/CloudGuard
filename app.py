@@ -14,8 +14,8 @@ import remediation_actions
 import remediation_engine
 
 # Configure AWS SDK / IMDS defaults for reliable EC2 IAM Role resolution
-os.environ.setdefault("AWS_METADATA_SERVICE_TIMEOUT", "10")
-os.environ.setdefault("AWS_METADATA_SERVICE_NUM_ATTEMPTS", "5")
+os.environ.setdefault("AWS_METADATA_SERVICE_TIMEOUT", "1")
+os.environ.setdefault("AWS_METADATA_SERVICE_NUM_ATTEMPTS", "1")
 os.environ.setdefault("AWS_EC2_METADATA_DISABLED", "false")
 
 # Prevent HTTP proxy from intercepting link-local EC2 IMDS calls (169.254.169.254)
@@ -75,6 +75,9 @@ def _get_cloudwatch_client():
         session = boto3.Session(region_name=AWS_REGION)
         creds = session.get_credentials()
 
+        if creds is None:
+            return None
+
         cfg = Config(
             region_name=AWS_REGION,
             connect_timeout=5,
@@ -83,8 +86,7 @@ def _get_cloudwatch_client():
         ) if Config else None
 
         client = session.client("cloudwatch", config=cfg) if cfg else session.client("cloudwatch")
-        if creds is not None:
-            _cw_client = client
+        _cw_client = client
         return client
     except Exception as e:
         logger.warning(f"Failed to initialize AWS CloudWatch client: {e}")
@@ -98,17 +100,15 @@ def get_aws_cloudwatch_cpu(force_refresh=False):
     Uses boto3 default credential chain (EC2 IAM role CloudGuardEC2Role).
     Caches the metric for 60 seconds to respect CloudWatch's 5-minute aggregation
     cadence and avoid unnecessary API requests during rapid 5-second polling.
-    On transient errors, retries after 5 seconds to ensure fast recovery upon credential availability.
+    On transient errors or missing credentials, caches for 30 seconds to avoid blocking rapid polling.
     Safely handles missing credentials, network delays, and empty datapoints.
     """
     global _cw_client, _aws_cache
     now_ts = time.time()
 
     # Cache hit check:
-    # On success ('available' or 'no_datapoints'), cache for 60 seconds to respect CloudWatch 5m cadence.
-    # On error, retry after 5 seconds to guarantee fast recovery once IAM role/IMDS credentials resolve.
-    is_cached_success = _aws_cache.get("status") in ("available", "no_datapoints")
-    cache_ttl = 60 if is_cached_success else 5
+    # Cache for 60 seconds to respect CloudWatch 5m cadence and prevent hammering connection lookups during 5s polling.
+    cache_ttl = 60
     if not force_refresh and (now_ts - _aws_cache.get("last_fetched", 0)) < cache_ttl and _aws_cache.get("last_fetched", 0) > 0:
         return _aws_cache
 
@@ -192,10 +192,15 @@ def get_aws_cloudwatch_cpu(force_refresh=False):
 database.init_database()
 
 
+# Throttle tracking for metric persistence (server_id -> timestamp)
+_last_metric_writes = {}
+
+
 @app.route("/")
 def dashboard():
     """Show the main dashboard."""
-    return render_template("dashboard.html", active_page="dashboard")
+    current_settings = database.get_all_settings()
+    return render_template("dashboard.html", active_page="dashboard", settings=current_settings)
 
 
 @app.route("/api/metrics")
@@ -208,25 +213,51 @@ def api_metrics():
         # Collect live metrics from monitor.py
         current = monitor.get_system_metrics()
 
-        # Save to SQLite database
-        database.add_metric(
-            server_id=server_id,
-            cpu_usage=current["cpu_percent"],
-            memory_usage=current["memory_percent"],
-            storage_usage=current["disk_percent"],
-            network_inbound=current["bytes_recv"],
-            network_outbound=current["bytes_sent"],
-        )
-
-        # Evaluate metrics against saved thresholds & update alerts / server status
-        server_status = database.evaluate_and_update_alerts(server_id, current)
-
-        # Get saved monitoring interval setting
+        # Get saved configuration settings & monitoring interval
         settings = database.get_all_settings()
         try:
             interval_sec = int(float(settings.get("monitoring_interval", 5)))
         except (ValueError, TypeError):
             interval_sec = 5
+
+        # Save to SQLite database respecting monitoring interval to prevent duplicate writes
+        now_ts = time.time()
+        last_write = _last_metric_writes.get(server_id, 0)
+        if (now_ts - last_write) >= (interval_sec * 0.8):
+            database.add_metric(
+                server_id=server_id,
+                cpu_usage=current["cpu_percent"],
+                memory_usage=current["memory_percent"],
+                storage_usage=current["disk_percent"],
+                network_inbound=current["bytes_recv"],
+                network_outbound=current["bytes_sent"],
+            )
+            _last_metric_writes[server_id] = now_ts
+
+        # Evaluate metrics against saved thresholds & update alerts / server status
+        server_status = database.evaluate_and_update_alerts(server_id, current)
+
+        # Parse threshold policies for frontend client synchronization
+        try:
+            cpu_warn = float(settings.get("cpu_warning_threshold", 70))
+            cpu_crit = float(settings.get("cpu_critical_threshold", 90))
+            mem_warn = float(settings.get("memory_warning_threshold", 80))
+            mem_crit = float(settings.get("memory_critical_threshold", 95))
+            disk_warn = float(settings.get("disk_warning_threshold", 75))
+            disk_crit = float(settings.get("disk_critical_threshold", 90))
+        except (ValueError, TypeError):
+            cpu_warn, cpu_crit = 70.0, 90.0
+            mem_warn, mem_crit = 80.0, 95.0
+            disk_warn, disk_crit = 75.0, 90.0
+
+        thresholds = {
+            "cpu_warning": cpu_warn,
+            "cpu_critical": cpu_crit,
+            "memory_warning": mem_warn,
+            "memory_critical": mem_crit,
+            "disk_warning": disk_warn,
+            "disk_critical": disk_crit,
+        }
 
         # Fetch recent history for chart display
         recent_history = database.get_recent_metrics(server_id=server_id, limit=12)
@@ -241,6 +272,7 @@ def api_metrics():
             "history": recent_history,
             "server_status": server_status,
             "interval_seconds": interval_sec,
+            "thresholds": thresholds,
             "aws_cpu_percent": aws_cpu_val,
             "aws_cloudwatch": aws_info,
         })
@@ -347,28 +379,34 @@ def api_remediation_simulate():
 
         server_id = database.get_or_create_default_server("Localhost")
 
+        # Check if an active unresolved alert already exists for this scenario to prevent duplicate records
+        existing_alert = database.get_active_alert_by_category(server_id, scenario)
+        alert_id = existing_alert["id"] if existing_alert else None
+
         # Configure safe simulation parameters
         if scenario == "cpu":
             target = target_resource or "Localhost"
             current_val = float(data.get("current_value", 94.5))
             threshold_val = 90.0
             # Ensure an active alert exists to demonstrate resolution
-            alert_id = database.add_alert(
-                server_id,
-                "Critical",
-                "CPU Spike Alert (Simulation)",
-                f"Localhost CPU usage spiked to {current_val}%."
-            )
+            if not alert_id:
+                alert_id = database.add_alert(
+                    server_id,
+                    "Critical",
+                    "CPU Spike Alert (Simulation)",
+                    f"Localhost CPU usage spiked to {current_val}%."
+                )
         elif scenario == "memory":
             target = target_resource or "Localhost"
             current_val = float(data.get("current_value", 96.8))
             threshold_val = 95.0
-            alert_id = database.add_alert(
-                server_id,
-                "Critical",
-                "High Memory Consumption Alert (Simulation)",
-                f"RAM usage exceeded {current_val}%."
-            )
+            if not alert_id:
+                alert_id = database.add_alert(
+                    server_id,
+                    "Critical",
+                    "High Memory Consumption Alert (Simulation)",
+                    f"RAM usage exceeded {current_val}%."
+                )
         elif scenario == "disk":
             target = target_resource or "Localhost"
             current_val = float(data.get("current_value", 93.2))
@@ -376,24 +414,26 @@ def api_remediation_simulate():
             # Create a sample safe temp file to demonstrate cleanup
             temp_dir = remediation_actions.ensure_temp_dir()
             (temp_dir / "simulated_cache_log.tmp").write_text("Simulated disk cache temporary data for cleanup test.")
-            alert_id = database.add_alert(
-                server_id,
-                "Critical",
-                "Storage Space Critical Alert (Simulation)",
-                f"Disk space partition reached {current_val}% capacity."
-            )
+            if not alert_id:
+                alert_id = database.add_alert(
+                    server_id,
+                    "Critical",
+                    "Storage Space Critical Alert (Simulation)",
+                    f"Disk space partition reached {current_val}% capacity."
+                )
         elif scenario == "service":
             target = target_resource or "web-worker"
             current_val = 1.0
             threshold_val = 0.0
             # Set service to Unhealthy before recovery cycle
             database.update_managed_service_status(target, "Unhealthy")
-            alert_id = database.add_alert(
-                server_id,
-                "Critical",
-                f"Service {target} Unhealthy (Simulation)",
-                f"Managed service '{target}' stopped responding to heartbeat probes."
-            )
+            if not alert_id:
+                alert_id = database.add_alert(
+                    server_id,
+                    "Critical",
+                    f"Service {target} Unhealthy (Simulation)",
+                    f"Managed service '{target}' stopped responding to heartbeat probes."
+                )
         else:
             return jsonify({
                 "status": "error",
@@ -411,6 +451,8 @@ def api_remediation_simulate():
             simulate_failure=simulate_failure,
             override_rule_id=int(rule_id) if rule_id else None,
         )
+        if isinstance(result, dict):
+            result["alert_id"] = alert_id
 
         return jsonify(result)
     except Exception as e:

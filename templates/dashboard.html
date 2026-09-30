@@ -65,7 +65,7 @@
     </div>
     <div class="metric-footer-row">
       <p class="card-meta">Average across active CPU cores</p>
-      <span class="metric-spark-label">Target &lt; 70%</span>
+      <span class="metric-spark-label" id="cpu-target-label">Target &lt; {{ settings.get('cpu_warning_threshold', '70') if settings else '70' }}%</span>
     </div>
   </article>
 
@@ -121,7 +121,7 @@
     </div>
     <div class="metric-footer-row">
       <p class="card-meta" id="memory-meta">Local physical RAM usage</p>
-      <span class="metric-spark-label">Target &lt; 80%</span>
+      <span class="metric-spark-label" id="memory-target-label">Target &lt; {{ settings.get('memory_warning_threshold', '80') if settings else '80' }}%</span>
     </div>
   </article>
 
@@ -147,7 +147,7 @@
     </div>
     <div class="metric-footer-row">
       <p class="card-meta">Primary mount partition capacity</p>
-      <span class="metric-spark-label">Target &lt; 75%</span>
+      <span class="metric-spark-label" id="disk-target-label">Target &lt; {{ settings.get('disk_warning_threshold', '75') if settings else '75' }}%</span>
     </div>
   </article>
 

@@ -22,6 +22,7 @@ DEFAULT_SETTINGS = {
     "disk_critical_threshold": "90",
     "monitoring_interval": "5",
     "enable_alerts": "true",
+    "enable_remediation": "true",
 }
 
 
@@ -216,6 +217,14 @@ def add_metric(server_id, cpu_usage, memory_usage, storage_usage, network_inboun
             """,
             (server_id, cpu_usage, memory_usage, storage_usage, network_inbound, network_outbound),
         )
+        # Keep metrics table bounded (prune records older than the latest 5000)
+        cursor.execute(
+            """
+            DELETE FROM metrics WHERE id NOT IN (
+                SELECT id FROM metrics ORDER BY id DESC LIMIT 5000
+            );
+            """
+        )
         conn.commit()
         return cursor.lastrowid
 
@@ -230,6 +239,25 @@ def add_alert(server_id, level, title, message=None):
         )
         conn.commit()
         return cursor.lastrowid
+
+
+def get_active_alert_by_category(server_id, category):
+    """Return the most recent active (unresolved) alert for a server and category if one exists."""
+    cat_clean = str(category).strip().lower()
+    cat_title = "Storage" if cat_clean == "disk" else cat_clean.capitalize()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, server_id, level, title, message, timestamp
+            FROM alerts
+            WHERE server_id = ? AND resolved = 0 AND (title LIKE ? OR (LOWER(?) = 'disk' AND title LIKE '%Storage%'))
+            ORDER BY id DESC LIMIT 1;
+            """,
+            (server_id, f"%{cat_title}%", cat_clean),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
 
 
 def get_or_create_default_server(name="Localhost"):
@@ -254,7 +282,7 @@ def get_recent_metrics(server_id=None, limit=12):
             cursor.execute(
                 """
                 SELECT * FROM metrics WHERE server_id = ?
-                ORDER BY timestamp DESC LIMIT ?
+                ORDER BY timestamp DESC, id DESC LIMIT ?
                 """,
                 (server_id, limit),
             )
@@ -262,7 +290,7 @@ def get_recent_metrics(server_id=None, limit=12):
             cursor.execute(
                 """
                 SELECT * FROM metrics
-                ORDER BY timestamp DESC LIMIT ?
+                ORDER BY timestamp DESC, id DESC LIMIT ?
                 """,
                 (limit,),
             )
@@ -465,20 +493,23 @@ def evaluate_and_update_alerts(server_id, metrics):
                 """
                 SELECT id, level, title 
                 FROM alerts 
-                WHERE server_id = ? AND resolved = 0 AND title LIKE ?
-                LIMIT 1;
+                WHERE server_id = ? AND resolved = 0 AND (title LIKE ? OR (LOWER(?) = 'disk' AND title LIKE '%Storage%'))
+                ORDER BY id DESC LIMIT 1;
                 """,
-                (server_id, f"%{cat}%"),
+                (server_id, f"%{cat}%", cat),
             )
             existing = cursor.fetchone()
 
             if severity == "Normal":
-                # Auto-resolve if active alert exists
-                if existing:
-                    cursor.execute(
-                        "UPDATE alerts SET resolved = 1 WHERE id = ?;",
-                        (existing["id"],),
-                    )
+                # Auto-resolve all active alerts matching this category on this server
+                cursor.execute(
+                    """
+                    UPDATE alerts 
+                    SET resolved = 1 
+                    WHERE server_id = ? AND resolved = 0 AND (title LIKE ? OR (LOWER(?) = 'disk' AND title LIKE '%Storage%'));
+                    """,
+                    (server_id, f"%{cat}%", cat),
+                )
             elif enable_alerts:
                 title = f"{cat} Usage {severity} Alert"
                 message = f"{server_name} {cat} usage ({val}%) reached {severity.lower()} threshold."

@@ -390,9 +390,9 @@ def _auto_resolve_matching_alert(server_id: int, trigger_type: str) -> None:
             """
             UPDATE alerts
             SET resolved = 1
-            WHERE server_id = ? AND resolved = 0 AND title LIKE ?;
+            WHERE server_id = ? AND resolved = 0 AND (title LIKE ? OR (LOWER(?) = 'disk' AND title LIKE '%Storage%'));
             """,
-            (server_id, f"%{cat}%"),
+            (server_id, f"%{cat}%", cat),
         )
         conn.commit()
 

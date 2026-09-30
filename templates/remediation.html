@@ -117,7 +117,7 @@
                     </div>
                     <div>
                         <h3 class="scenario-title">1. High CPU Spike</h3>
-                        <span class="pill pill-warning pill-sm">Trigger: CPU &gt; 90%</span>
+                        <span class="pill pill-warning pill-sm">Trigger: CPU &gt; {{ settings.get('cpu_critical_threshold', '90') if settings else '90' }}%</span>
                     </div>
                 </div>
             </div>
@@ -144,13 +144,13 @@
                     </div>
                     <div>
                         <h3 class="scenario-title">2. Memory Pressure</h3>
-                        <span class="pill pill-warning pill-sm">Trigger: RAM &gt; 95%</span>
+                        <span class="pill pill-warning pill-sm">Trigger: RAM &gt; {{ settings.get('memory_critical_threshold', '95') if settings else '95' }}%</span>
                     </div>
                 </div>
             </div>
             <p class="scenario-desc">Invokes Python garbage collection runtime sweeps and clears volatile memory cache allocations.</p>
             <div class="scenario-action-badge">
-                <code>clear_memory_cache</code>
+                <code>flush_memory_caches</code>
             </div>
             <button type="button" class="btn-primary sim-btn" data-scenario="memory">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -171,13 +171,13 @@
                     </div>
                     <div>
                         <h3 class="scenario-title">3. High Disk Storage</h3>
-                        <span class="pill pill-warning pill-sm">Trigger: Disk &gt; 90%</span>
+                        <span class="pill pill-warning pill-sm">Trigger: Disk &gt; {{ settings.get('disk_critical_threshold', '90') if settings else '90' }}%</span>
                     </div>
                 </div>
             </div>
             <p class="scenario-desc">Purges sandboxed temporary cache files inside <code>logs/temp_cache</code> safely without touching user data.</p>
             <div class="scenario-action-badge">
-                <code>clean_temp_cache</code>
+                <code>clean_temp_cache_files</code>
             </div>
             <button type="button" class="btn-primary sim-btn" data-scenario="disk">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -204,7 +204,7 @@
             </div>
             <p class="scenario-desc">Executes controlled restart cycle for managed service (<code>web-worker</code>) and re-verifies health probe.</p>
             <div class="scenario-action-badge">
-                <code>restart_service</code>
+                <code>restart_managed_service</code>
             </div>
             <button type="button" class="btn-primary sim-btn" data-scenario="service">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">

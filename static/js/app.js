@@ -155,7 +155,7 @@ async function fetchMetrics() {
     }
     const data = await response.json();
     if (data.status === "success" && data.current) {
-      updateDashboard(data.current, data.history || [], data.aws_cpu_percent, data.aws_cloudwatch);
+      updateDashboard(data.current, data.history || [], data.aws_cpu_percent, data.aws_cloudwatch, data.thresholds);
       if (data.interval_seconds && Number(data.interval_seconds) > 0) {
         currentPollInterval = Number(data.interval_seconds) * 1000;
       }
@@ -172,7 +172,23 @@ async function fetchMetrics() {
 /* ==========================================================================
    4. Live Dashboard Telemetry DOM Updates
    ========================================================================== */
-function updateDashboard(current, history, awsCpu = null, awsInfo = null) {
+function updateDashboard(current, history, awsCpu = null, awsInfo = null, thresholds = null) {
+  // Extract user-configured thresholds with sensible defaults
+  const cpuWarn = thresholds && thresholds.cpu_warning !== undefined ? thresholds.cpu_warning : 70;
+  const cpuCrit = thresholds && thresholds.cpu_critical !== undefined ? thresholds.cpu_critical : 90;
+  const memWarn = thresholds && thresholds.memory_warning !== undefined ? thresholds.memory_warning : 80;
+  const memCrit = thresholds && thresholds.memory_critical !== undefined ? thresholds.memory_critical : 95;
+  const diskWarn = thresholds && thresholds.disk_warning !== undefined ? thresholds.disk_warning : 75;
+  const diskCrit = thresholds && thresholds.disk_critical !== undefined ? thresholds.disk_critical : 90;
+
+  // Dynamically synchronize target sparkline labels with configured settings
+  const cpuTarget = document.getElementById("cpu-target-label");
+  if (cpuTarget) cpuTarget.textContent = `Target < ${cpuWarn}%`;
+  const memTarget = document.getElementById("memory-target-label");
+  if (memTarget) memTarget.textContent = `Target < ${memWarn}%`;
+  const diskTarget = document.getElementById("disk-target-label");
+  if (diskTarget) diskTarget.textContent = `Target < ${diskWarn}%`;
+
   // Update Local Host CPU
   const cpuVal = document.getElementById("cpu-value");
   const cpuBar = document.getElementById("cpu-bar");
@@ -181,14 +197,14 @@ function updateDashboard(current, history, awsCpu = null, awsInfo = null) {
   if (cpuBar) {
     cpuBar.style.width = `${Math.min(current.cpu_percent, 100)}%`;
     cpuBar.className = "bar-fill";
-    if (current.cpu_percent >= 90) cpuBar.classList.add("bar-critical");
-    else if (current.cpu_percent >= 70) cpuBar.classList.add("bar-warn");
+    if (current.cpu_percent >= cpuCrit) cpuBar.classList.add("bar-critical");
+    else if (current.cpu_percent >= cpuWarn) cpuBar.classList.add("bar-warn");
   }
   if (cpuPill) {
-    if (current.cpu_percent >= 90) {
+    if (current.cpu_percent >= cpuCrit) {
       cpuPill.textContent = "Critical";
       cpuPill.className = "pill pill-offline";
-    } else if (current.cpu_percent >= 70) {
+    } else if (current.cpu_percent >= cpuWarn) {
       cpuPill.textContent = "Elevated";
       cpuPill.className = "pill pill-warning";
     } else {
@@ -211,14 +227,14 @@ function updateDashboard(current, history, awsCpu = null, awsInfo = null) {
       if (awsBar) {
         awsBar.style.width = `${Math.min(awsCpu, 100)}%`;
         awsBar.className = "bar-fill bar-aws";
-        if (awsCpu >= 90) awsBar.classList.add("bar-critical");
-        else if (awsCpu >= 70) awsBar.classList.add("bar-warn");
+        if (awsCpu >= cpuCrit) awsBar.classList.add("bar-critical");
+        else if (awsCpu >= cpuWarn) awsBar.classList.add("bar-warn");
       }
       if (awsPill) {
-        if (awsCpu >= 90) {
+        if (awsCpu >= cpuCrit) {
           awsPill.textContent = "Critical";
           awsPill.className = "pill pill-offline";
-        } else if (awsCpu >= 70) {
+        } else if (awsCpu >= cpuWarn) {
           awsPill.textContent = "Elevated";
           awsPill.className = "pill pill-warning";
         } else {
@@ -234,6 +250,7 @@ function updateDashboard(current, history, awsCpu = null, awsInfo = null) {
       }
     } else {
       // CloudWatch state when datapoint is not yet received or awaiting IAM/CloudWatch polling
+      awsVal.innerHTML = '<span class="text-muted">--</span><span class="unit">%</span>';
       if (awsBar) awsBar.style.width = "0%";
       if (awsPill) {
         if (awsInfo && awsInfo.status === "no_datapoints") {
@@ -274,14 +291,14 @@ function updateDashboard(current, history, awsCpu = null, awsInfo = null) {
   if (memBar) {
     memBar.style.width = `${Math.min(current.memory_percent, 100)}%`;
     memBar.className = "bar-fill";
-    if (current.memory_percent >= 95) memBar.classList.add("bar-critical");
-    else if (current.memory_percent >= 80) memBar.classList.add("bar-warn");
+    if (current.memory_percent >= memCrit) memBar.classList.add("bar-critical");
+    else if (current.memory_percent >= memWarn) memBar.classList.add("bar-warn");
   }
   if (memPill) {
-    if (current.memory_percent >= 95) {
+    if (current.memory_percent >= memCrit) {
       memPill.textContent = "Critical";
       memPill.className = "pill pill-offline";
-    } else if (current.memory_percent >= 80) {
+    } else if (current.memory_percent >= memWarn) {
       memPill.textContent = "Elevated";
       memPill.className = "pill pill-warning";
     } else {
@@ -298,14 +315,14 @@ function updateDashboard(current, history, awsCpu = null, awsInfo = null) {
   if (diskBar) {
     diskBar.style.width = `${Math.min(current.disk_percent, 100)}%`;
     diskBar.className = "bar-fill";
-    if (current.disk_percent >= 90) diskBar.classList.add("bar-critical");
-    else if (current.disk_percent >= 75) diskBar.classList.add("bar-warn");
+    if (current.disk_percent >= diskCrit) diskBar.classList.add("bar-critical");
+    else if (current.disk_percent >= diskWarn) diskBar.classList.add("bar-warn");
   }
   if (diskPill) {
-    if (current.disk_percent >= 90) {
+    if (current.disk_percent >= diskCrit) {
       diskPill.textContent = "Critical";
       diskPill.className = "pill pill-offline";
-    } else if (current.disk_percent >= 75) {
+    } else if (current.disk_percent >= diskWarn) {
       diskPill.textContent = "Elevated";
       diskPill.className = "pill pill-warning";
     } else {
@@ -453,22 +470,34 @@ function buildMultiSeriesChart(cpuSeries, memSeries, diskSeries) {
   const paddingX = 18;
   const paddingY = 20;
   const maxVal = 100;
-  const len = Math.max(cpuSeries.length, 1);
+
+  // If only 1 data point, duplicate it so SVG polyline has at least 2 points to render a benchmark line
+  let cpuData = cpuSeries.slice();
+  let memData = memSeries.slice();
+  let diskData = diskSeries.slice();
+  if (cpuData.length === 1) {
+    cpuData.push(cpuData[0]);
+    memData.push(memData[0]);
+    diskData.push(diskData[0]);
+  }
+
+  const len = Math.max(cpuData.length, 1);
   const stepX = (width - paddingX * 2) / Math.max(len - 1, 1);
 
   function makePoints(values) {
     return values
       .map((val, idx) => {
+        const num = val !== null && val !== undefined ? Number(val) : 0;
         const x = paddingX + idx * stepX;
-        const y = height - paddingY - (Math.min(val, maxVal) / maxVal) * (height - paddingY * 2);
+        const y = height - paddingY - (Math.min(num, maxVal) / maxVal) * (height - paddingY * 2);
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       })
       .join(" ");
   }
 
-  const cpuPoly = makePoints(cpuSeries);
-  const memPoly = makePoints(memSeries);
-  const diskPoly = makePoints(diskSeries);
+  const cpuPoly = makePoints(cpuData);
+  const memPoly = makePoints(memData);
+  const diskPoly = makePoints(diskData);
 
   return `
     <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="History trends chart" class="cyber-svg-chart">

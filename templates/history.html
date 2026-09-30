@@ -90,7 +90,7 @@
                         </div>
                     </td>
                     <td><span class="metric-num {% if row.cpu_usage >= 90 %}text-critical{% elif row.cpu_usage >= 70 %}text-warning{% endif %}">{{ "%.1f"|format(row.cpu_usage) }}%</span></td>
-                    <td><span class="metric-num {% if row.memory_usage >= 90 %}text-critical{% elif row.memory_usage >= 75 %}text-warning{% endif %}">{{ "%.1f"|format(row.memory_usage) }}%</span></td>
+                    <td><span class="metric-num {% if row.memory_usage >= 95 %}text-critical{% elif row.memory_usage >= 80 %}text-warning{% endif %}">{{ "%.1f"|format(row.memory_usage) }}%</span></td>
                     <td><span class="metric-num {% if row.storage_usage >= 90 %}text-critical{% elif row.storage_usage >= 75 %}text-warning{% endif %}">{{ "%.1f"|format(row.storage_usage) }}%</span></td>
                     <td><span class="metric-network">{{ "%.2f"|format(row.network_inbound / (1024 * 1024)) }} MB</span></td>
                     <td><span class="metric-network">{{ "%.2f"|format(row.network_outbound / (1024 * 1024)) }} MB</span></td>

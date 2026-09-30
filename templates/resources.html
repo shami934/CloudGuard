@@ -97,8 +97,8 @@
                     <td>
                         {% if server.memory_usage is not none %}
                         <div class="metric-cell-wrap">
-                            <span class="metric-num {% if server.memory_usage >= 90 %}text-critical{% elif server.memory_usage >= 75 %}text-warning{% endif %}">{{ "%.1f"|format(server.memory_usage) }}%</span>
-                            <div class="mini-bar"><span class="mini-bar-fill {% if server.memory_usage >= 90 %}mini-critical{% elif server.memory_usage >= 75 %}mini-warn{% endif %}" style="width: {{ server.memory_usage }}%;"></span></div>
+                            <span class="metric-num {% if server.memory_usage >= 95 %}text-critical{% elif server.memory_usage >= 80 %}text-warning{% endif %}">{{ "%.1f"|format(server.memory_usage) }}%</span>
+                            <div class="mini-bar"><span class="mini-bar-fill {% if server.memory_usage >= 95 %}mini-critical{% elif server.memory_usage >= 80 %}mini-warn{% endif %}" style="width: {{ server.memory_usage }}%;"></span></div>
                         </div>
                         {% else %}
                         <span class="text-muted">&mdash;</span>
